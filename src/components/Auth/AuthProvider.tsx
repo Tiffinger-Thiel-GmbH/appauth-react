@@ -12,7 +12,7 @@ export const useLoginContext = (): AuthState => {
   return loginState;
 };
 
-interface AuthProviderProps extends AuthOptions {
+export interface AuthProviderProps extends AuthOptions {
   children: ReactNode;
 }
 
