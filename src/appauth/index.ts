@@ -1,4 +1,4 @@
-export type { EndSessionRequest, EndSessionRequestJson } from './endSessionRequest';
-export type { EndSessionRequestHandler } from './endSessionRequestHandler';
-export type { NoHashQueryStringUtils } from './noHashQueryStringUtils';
-export type { RedirectEndSessionRequestHandler } from './redirectEndSessionRequestHandler';
+export { EndSessionRequest, EndSessionRequestJson } from './endSessionRequest';
+export { EndSessionRequestHandler } from './endSessionRequestHandler';
+export { NoHashQueryStringUtils } from './noHashQueryStringUtils';
+export { RedirectEndSessionRequestHandler } from './redirectEndSessionRequestHandler';
