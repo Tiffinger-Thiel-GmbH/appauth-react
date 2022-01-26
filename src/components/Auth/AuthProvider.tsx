@@ -16,8 +16,8 @@ interface AuthProviderProps extends AuthOptions {
   children: ReactNode;
 }
 
-export const AuthProvider: FC<AuthProviderProps> = ({ children, options, device = 'web' }) => {
-  const state = useAuth({ options, device });
+export const AuthProvider: FC<AuthProviderProps> = ({ children, ...options }) => {
+  const state = useAuth(options);
 
   return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
 };

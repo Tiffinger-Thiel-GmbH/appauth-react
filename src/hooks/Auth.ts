@@ -34,7 +34,6 @@ export interface AuthState {
 
 export interface AuthOptions {
   options: AuthenticateOptions;
-  device?: Device;
 
   authHandler?: AuthorizationRequestHandler;
   endSessionHandler?: EndSessionRequestHandler;
