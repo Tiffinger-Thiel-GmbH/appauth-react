@@ -8,8 +8,8 @@ import {
   TokenRequest,
   TokenResponse,
 } from '@openid/appauth';
-import { EndSessionRequest } from './endSessionRequest';
-import { EndSessionRequestHandler } from './endSessionRequestHandler';
+import { EndSessionRequest } from '../appauth/endSessionRequest';
+import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
 
 export async function performTokenRequest(
   configuration: AuthorizationServiceConfiguration,

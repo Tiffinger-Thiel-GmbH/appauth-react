@@ -11,9 +11,9 @@ import {
 } from '@openid/appauth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { performEndSessionRequest, performRefreshTokenRequest, performTokenRequest } from './api';
-import { EndSessionRequestHandler } from './endSessionRequestHandler';
-import { NoHashQueryStringUtils } from './noHashQueryStringUtils';
-import { RedirectEndSessionRequestHandler } from './redirectEndSessionRequestHandler';
+import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
+import { NoHashQueryStringUtils } from '../appauth/noHashQueryStringUtils';
+import { RedirectEndSessionRequestHandler } from '../appauth/redirectEndSessionRequestHandler';
 
 export type Device = 'android' | 'web' | 'ios';
 
