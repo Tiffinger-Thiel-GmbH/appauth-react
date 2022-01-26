@@ -1,1 +1,1 @@
-export type { AuthenticateOptions, AuthState, useAuth } from './Auth';
+export { AuthenticateOptions, AuthState, useAuth } from './Auth';

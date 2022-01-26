@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AuthorizationNotifier,
   AuthorizationRequest,
@@ -9,13 +10,10 @@ import {
   RedirectRequestHandler,
   TokenResponse,
 } from '@openid/appauth';
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { performEndSessionRequest, performRefreshTokenRequest, performTokenRequest } from './api';
 import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
 import { NoHashQueryStringUtils } from '../appauth/noHashQueryStringUtils';
 import { RedirectEndSessionRequestHandler } from '../appauth/redirectEndSessionRequestHandler';
-
-export type Device = 'android' | 'web' | 'ios';
 
 export interface AuthenticateOptions {
   openIdConnectUrl: string;
