@@ -1,0 +1,11 @@
+{
+  "eslint.format.enable": true,
+  "eslint.packageManager": "yarn",
+  "editor.formatOnSave": true,
+  "[javascript,]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  },
+}
