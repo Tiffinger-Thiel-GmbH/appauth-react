@@ -26,6 +26,7 @@ export interface AuthState {
   login: () => Promise<void>;
   logout: () => Promise<boolean | undefined>;
   token?: string;
+  idToken?: string;
   isLoggedIn: boolean;
   isReady: boolean;
 }
@@ -222,7 +223,8 @@ export const useAuth = ({
       isLoggedIn,
       isReady: isReady,
       token,
+      idToken,
     }),
-    [isLoggedIn, isReady, login, logout, token],
+    [idToken, isLoggedIn, isReady, login, logout, token],
   );
 };
