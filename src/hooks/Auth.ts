@@ -49,21 +49,22 @@ export interface AuthOptions {
   endSessionHandler?: EndSessionRequestHandler;
 }
 
-// Hack to prevent double code loading
-let codeLoaded: boolean = false;
-
 const AUTH_REFRESH_TOKEN_KEY = 'AUTH_REFRESH_TOKEN';
 
 const storage = new LocalStorageBackend();
 
+const DEFAULT_AUTH_HANDLER = new RedirectRequestHandler(storage, new NoHashQueryStringUtils(), window.location, new DefaultCrypto());
+const DEFAULT_END_SESSION_HANDLER = new RedirectEndSessionRequestHandler(storage, new NoHashQueryStringUtils(), window.location);
+
 export const useAuth = ({
   options,
-  authHandler = new RedirectRequestHandler(storage, new NoHashQueryStringUtils(), window.location, new DefaultCrypto()),
-  endSessionHandler = new RedirectEndSessionRequestHandler(new LocalStorageBackend(), new NoHashQueryStringUtils(), window.location),
+  authHandler = DEFAULT_AUTH_HANDLER,
+  endSessionHandler = DEFAULT_END_SESSION_HANDLER,
 }: AuthOptions): AuthState => {
   // ready defines if the Authentication is initialized.
   // (e.g. the auto login is done)
-  const [isReady, setIsReady] = useState(false);
+  const [isAutoLoginDone, setIsAutoLoginDone] = useState(false);
+  const [isInitializationComplete, setIsInitializationComplete] = useState(false);
   const [token, setToken] = useState<string>();
   const [idToken, setIdToken] = useState<string>();
   const [configuration, setConfiguration] = useState<AuthorizationServiceConfiguration>();
@@ -71,7 +72,7 @@ export const useAuth = ({
   const [refreshToken, setRefreshToken] = useState<string>();
   const [refreshInterval, setRefreshInterval] = useState(Math.floor(3240000));
 
-  const isLoggedIn = token !== undefined && isReady;
+  const isLoggedIn = token !== undefined && isAutoLoginDone;
 
   /**
    * Set the tokens and refresh interval from the given TokenResponse.
@@ -89,7 +90,7 @@ export const useAuth = ({
     }
 
     setIdToken(oResponse.idToken);
-    setIsReady(true);
+    setIsAutoLoginDone(true);
 
     // Set the interval to a bit shorter time.
     setRefreshInterval(Math.floor((oResponse.expiresIn || 3600) * 1000 * 0.9));
@@ -100,7 +101,7 @@ export const useAuth = ({
     void (async () => {
       const savedRefreshToken = await storage.getItem(AUTH_REFRESH_TOKEN_KEY);
       if (!savedRefreshToken) {
-        setIsReady(true);
+        setIsAutoLoginDone(true);
         return;
       }
       if (configuration) {
@@ -172,10 +173,9 @@ export const useAuth = ({
       }
 
       // As this cb seems to be called too often some times, only run it the first time.
-      if (codeLoaded || !configuration) {
+      if (!configuration) {
         return;
       }
-      codeLoaded = true;
 
       // response object returns code which is in URL i.e. response.code
       // request object returns code_verifier i.e request.internal.code_verifier
@@ -204,11 +204,11 @@ export const useAuth = ({
 
     // Run the auth completion (listener in the useEffect above) to handle
     // the redirects.
-    void authHandler.completeAuthorizationRequestIfPossible();
+    void authHandler.completeAuthorizationRequestIfPossible().then(() => setIsInitializationComplete(true));
   }, [authHandler, configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
   const login = useCallback(async () => {
-    if (!configuration || !authHandler || !isReady) {
+    if (!configuration || !authHandler || !isAutoLoginDone || !isInitializationComplete) {
       throw new Error('called login too soon - you can check that with "isReady"');
     }
 
@@ -231,7 +231,8 @@ export const useAuth = ({
   }, [
     authHandler,
     configuration,
-    isReady,
+    isAutoLoginDone,
+    isInitializationComplete,
     options.authorizationRequest?.extras,
     options.clientId,
     options.redirectUrl,
@@ -242,7 +243,6 @@ export const useAuth = ({
   const logout = useCallback(async () => {
     const tmpIdToken = idToken;
 
-    codeLoaded = false;
     setRefreshToken(undefined);
     setToken(undefined);
     setIdToken(undefined);
@@ -268,10 +268,10 @@ export const useAuth = ({
       login,
       logout,
       isLoggedIn,
-      isReady: isReady && !!configuration,
+      isReady: isAutoLoginDone && isInitializationComplete,
       token,
       idToken,
     }),
-    [idToken, isLoggedIn, isReady, configuration, login, logout, token],
+    [idToken, isLoggedIn, isAutoLoginDone, isInitializationComplete, login, logout, token],
   );
 };
