@@ -21,6 +21,7 @@ export interface AuthenticateOptions {
   clientId: string;
   scope: string;
   redirectUrl: string;
+  usePkce?: boolean;
   tokenRequest?: {
     extras?: StringMap | undefined;
   };
@@ -212,18 +213,31 @@ export const useAuth = ({
     }
 
     // create a request
-    const request = new AuthorizationRequest({
-      client_id: options.clientId,
-      redirect_uri: options.redirectUrl,
-      scope: options.scope,
-      response_type: AuthorizationRequest.RESPONSE_TYPE_CODE,
-      state: undefined,
-      extras: options.authorizationRequest?.extras,
-    });
+    const request = new AuthorizationRequest(
+      {
+        client_id: options.clientId,
+        redirect_uri: options.redirectUrl,
+        scope: options.scope,
+        response_type: AuthorizationRequest.RESPONSE_TYPE_CODE,
+        state: undefined,
+        extras: options.authorizationRequest?.extras,
+      },
+      undefined,
+      options.usePkce,
+    );
 
     // make the authorization request
     authHandler.performAuthorizationRequest(configuration, request);
-  }, [authHandler, configuration, isReady, options.authorizationRequest?.extras, options.clientId, options.redirectUrl, options.scope]);
+  }, [
+    authHandler,
+    configuration,
+    isReady,
+    options.authorizationRequest?.extras,
+    options.clientId,
+    options.redirectUrl,
+    options.scope,
+    options.usePkce,
+  ]);
 
   const logout = useCallback(async () => {
     const tmpIdToken = idToken;
@@ -254,10 +268,10 @@ export const useAuth = ({
       login,
       logout,
       isLoggedIn,
-      isReady: isReady,
+      isReady: isReady && !!configuration,
       token,
       idToken,
     }),
-    [idToken, isLoggedIn, isReady, login, logout, token],
+    [idToken, isLoggedIn, isReady, configuration, login, logout, token],
   );
 };
