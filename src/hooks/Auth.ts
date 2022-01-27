@@ -166,45 +166,52 @@ export const useAuth = ({
 
     const notifier = new AuthorizationNotifier();
     authHandler.setAuthorizationNotifier(notifier);
+    let listenerPromise: Promise<void> | undefined;
     notifier.setAuthorizationListener((request, response, error) => {
-      if (error) {
-        console.error(error);
-        return;
-      }
+      listenerPromise = new Promise((resolve, reject) => {
+        if (error) {
+          reject(error);
+          return;
+        }
 
-      // As this cb seems to be called too often some times, only run it the first time.
-      if (!configuration) {
-        return;
-      }
+        // As this cb seems to be called too often some times, only run it the first time.
+        if (!configuration) {
+          resolve();
+          return;
+        }
 
-      // response object returns code which is in URL i.e. response.code
-      // request object returns code_verifier i.e request.internal.code_verifier
+        // response object returns code which is in URL i.e. response.code
+        // request object returns code_verifier i.e request.internal.code_verifier
 
-      if (response) {
-        performTokenRequest(
-          configuration,
-          options.clientId,
-          options.redirectUrl,
-          response.code,
+        if (response) {
+          performTokenRequest(
+            configuration,
+            options.clientId,
+            options.redirectUrl,
+            response.code,
 
-          // Needed for PKCE to work
-          request && request.internal
-            ? {
-                code_verifier: request.internal.code_verifier,
-                ...(options.tokenRequest?.extras || {}),
-              }
-            : options.tokenRequest?.extras,
-        )
-          .then(setTokenResponse)
-          .catch(oError => {
-            console.error(oError);
-          });
-      }
+            // Needed for PKCE to work
+            request && request.internal
+              ? {
+                  code_verifier: request.internal.code_verifier,
+                  ...(options.tokenRequest?.extras || {}),
+                }
+              : options.tokenRequest?.extras,
+          )
+            .then(setTokenResponse)
+            .then(resolve)
+            .catch(reject);
+        }
+      });
     });
 
     // Run the auth completion (listener in the useEffect above) to handle
     // the redirects.
-    void authHandler.completeAuthorizationRequestIfPossible().then(() => setIsInitializationComplete(true));
+    void authHandler
+      .completeAuthorizationRequestIfPossible()
+      .then(() => listenerPromise)
+      .then(() => setIsInitializationComplete(true))
+      .catch(err => console.error(err));
   }, [authHandler, configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
   const login = useCallback(async () => {
