@@ -8,6 +8,7 @@ import {
   FetchRequestor,
   LocalStorageBackend,
   RedirectRequestHandler,
+  StringMap,
   TokenResponse,
 } from '@openid/appauth';
 import { performEndSessionRequest, performRefreshTokenRequest, performTokenRequest } from './api';
@@ -20,6 +21,7 @@ export interface AuthenticateOptions {
   clientId: string;
   scope: string;
   redirectUrl: string;
+  extras: StringMap | undefined;
 }
 
 export interface AuthState {
@@ -93,12 +95,12 @@ export const useAuth = ({
         return;
       }
       if (configuration) {
-        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, savedRefreshToken)
+        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, savedRefreshToken, options.extras)
           .then(setTokenResponse)
           .catch(console.error);
       }
     })();
-  }, [configuration, options.redirectUrl, options.clientId, setTokenResponse]);
+  }, [configuration, options.redirectUrl, options.clientId, setTokenResponse, options.extras]);
 
   // Refresh periodically.
   useEffect(() => {
@@ -108,7 +110,7 @@ export const useAuth = ({
       }
 
       if (configuration) {
-        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, refreshToken)
+        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, refreshToken, options.extras)
           .then(setTokenResponse)
           .catch(console.error);
       }
@@ -117,7 +119,7 @@ export const useAuth = ({
     return () => {
       clearInterval(timeoutId);
     };
-  }, [configuration, options.redirectUrl, isLoggedIn, options.clientId, refreshInterval, refreshToken, setTokenResponse]);
+  }, [configuration, options.redirectUrl, isLoggedIn, options.clientId, refreshInterval, refreshToken, setTokenResponse, options.extras]);
 
   // Fetch the well known config one time.
   useEffect(() => {
@@ -165,8 +167,9 @@ export const useAuth = ({
           request && request.internal
             ? {
                 code_verifier: request.internal.code_verifier,
+                ...options.extras,
               }
-            : undefined,
+            : options.extras,
         )
           .then(setTokenResponse)
           .catch(oError => {
@@ -178,7 +181,7 @@ export const useAuth = ({
     // Run the auth completion (listener in the useEffect above) to handle
     // the redirects.
     void authHandler.completeAuthorizationRequestIfPossible();
-  }, [authHandler, configuration, options.redirectUrl, options.clientId, setTokenResponse]);
+  }, [authHandler, configuration, options.redirectUrl, options.clientId, setTokenResponse, options.extras]);
 
   const login = useCallback(async () => {
     if (!configuration || !authHandler || !isReady) {

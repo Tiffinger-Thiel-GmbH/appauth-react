@@ -37,6 +37,7 @@ export async function performRefreshTokenRequest(
   clientId: string,
   redirectUrl: string,
   refreshToken: string | undefined,
+  extras?: StringMap,
 ): Promise<TokenResponse> {
   const tokenRequest = new TokenRequest({
     client_id: clientId,
@@ -44,7 +45,7 @@ export async function performRefreshTokenRequest(
     grant_type: GRANT_TYPE_REFRESH_TOKEN,
     code: undefined,
     refresh_token: refreshToken,
-    extras: undefined,
+    extras,
   });
 
   const tokenHandler = new BaseTokenRequestHandler(new FetchRequestor());
