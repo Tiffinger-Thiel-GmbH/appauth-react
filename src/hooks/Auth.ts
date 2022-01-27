@@ -21,7 +21,15 @@ export interface AuthenticateOptions {
   clientId: string;
   scope: string;
   redirectUrl: string;
-  extras: StringMap | undefined;
+  tokenRequest?: {
+    extras?: StringMap | undefined;
+  };
+  endSessionRequest?: {
+    extras?: StringMap | undefined;
+  };
+  authorizationRequest?: {
+    extras?: StringMap | undefined;
+  };
 }
 
 export interface AuthState {
@@ -95,12 +103,18 @@ export const useAuth = ({
         return;
       }
       if (configuration) {
-        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, savedRefreshToken, options.extras)
+        await performRefreshTokenRequest(
+          configuration,
+          options.clientId,
+          options.redirectUrl,
+          savedRefreshToken,
+          options.tokenRequest?.extras,
+        )
           .then(setTokenResponse)
           .catch(console.error);
       }
     })();
-  }, [configuration, options.redirectUrl, options.clientId, setTokenResponse, options.extras]);
+  }, [configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
   // Refresh periodically.
   useEffect(() => {
@@ -110,7 +124,7 @@ export const useAuth = ({
       }
 
       if (configuration) {
-        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, refreshToken, options.extras)
+        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, refreshToken, options.tokenRequest?.extras)
           .then(setTokenResponse)
           .catch(console.error);
       }
@@ -119,7 +133,16 @@ export const useAuth = ({
     return () => {
       clearInterval(timeoutId);
     };
-  }, [configuration, options.redirectUrl, isLoggedIn, options.clientId, refreshInterval, refreshToken, setTokenResponse, options.extras]);
+  }, [
+    configuration,
+    options.redirectUrl,
+    isLoggedIn,
+    options.clientId,
+    refreshInterval,
+    refreshToken,
+    setTokenResponse,
+    options.tokenRequest?.extras,
+  ]);
 
   // Fetch the well known config one time.
   useEffect(() => {
@@ -167,9 +190,9 @@ export const useAuth = ({
           request && request.internal
             ? {
                 code_verifier: request.internal.code_verifier,
-                ...options.extras,
+                ...(options.tokenRequest?.extras || {}),
               }
-            : options.extras,
+            : options.tokenRequest?.extras,
         )
           .then(setTokenResponse)
           .catch(oError => {
@@ -181,7 +204,7 @@ export const useAuth = ({
     // Run the auth completion (listener in the useEffect above) to handle
     // the redirects.
     void authHandler.completeAuthorizationRequestIfPossible();
-  }, [authHandler, configuration, options.redirectUrl, options.clientId, setTokenResponse, options.extras]);
+  }, [authHandler, configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
   const login = useCallback(async () => {
     if (!configuration || !authHandler || !isReady) {
@@ -195,12 +218,12 @@ export const useAuth = ({
       scope: options.scope,
       response_type: AuthorizationRequest.RESPONSE_TYPE_CODE,
       state: undefined,
-      extras: { prompt: 'consent', access_type: 'offline' },
+      extras: options.authorizationRequest?.extras,
     });
 
     // make the authorization request
     authHandler.performAuthorizationRequest(configuration, request);
-  }, [authHandler, configuration, options.redirectUrl, isReady, options.clientId, options.scope]);
+  }, [authHandler, configuration, isReady, options.authorizationRequest?.extras, options.clientId, options.redirectUrl, options.scope]);
 
   const logout = useCallback(async () => {
     const tmpIdToken = idToken;
@@ -214,10 +237,17 @@ export const useAuth = ({
       return;
     }
 
-    void performEndSessionRequest(endSessionHandler, configuration, options.clientId, options.redirectUrl, idToken);
+    void performEndSessionRequest(
+      endSessionHandler,
+      configuration,
+      options.clientId,
+      options.redirectUrl,
+      idToken,
+      options.endSessionRequest?.extras,
+    );
 
     return true;
-  }, [configuration, endSessionHandler, idToken, options.clientId, options.redirectUrl]);
+  }, [configuration, endSessionHandler, idToken, options.clientId, options.endSessionRequest?.extras, options.redirectUrl]);
 
   return useMemo(
     () => ({

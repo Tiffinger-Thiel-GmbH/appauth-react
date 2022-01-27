@@ -58,6 +58,7 @@ export function performEndSessionRequest(
   clientId: string,
   redirectUrl: string,
   idToken: string,
+  extras?: StringMap,
 ): void {
   endSessionHandler.performEndSessionRequest(
     configuration,
@@ -66,6 +67,7 @@ export function performEndSessionRequest(
       redirect_uri: redirectUrl,
       // eslint-disable-next-line @typescript-eslint/naming-convention
       id_token_hint: idToken,
+      extras,
     }),
   );
 }
