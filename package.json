@@ -20,7 +20,7 @@
     "prepare": "husky install",
     "gitmoji": "node tools/gitmoji.js",
     "build": "rollup -c",
-    "release": "release-it"
+    "release": "yarn build  && release-it"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
