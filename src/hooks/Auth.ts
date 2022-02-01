@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AppAuthError,
   AuthorizationNotifier,
   AuthorizationRequest,
   AuthorizationRequestHandler,
@@ -105,15 +106,25 @@ export const useAuth = ({
         return;
       }
       if (configuration) {
-        await performRefreshTokenRequest(
-          configuration,
-          options.clientId,
-          options.redirectUrl,
-          savedRefreshToken,
-          options.tokenRequest?.extras,
-        )
-          .then(setTokenResponse)
-          .catch(console.error);
+        try {
+          const response = await performRefreshTokenRequest(
+            configuration,
+            options.clientId,
+            options.redirectUrl,
+            savedRefreshToken,
+            options.tokenRequest?.extras,
+          );
+          setTokenResponse(response);
+        } catch (err) {
+          if (err instanceof AppAuthError) {
+            const statusCode = Number.parseInt(err.message, 10);
+            if (statusCode >= 400 && statusCode < 500) {
+              // HTTP client error -> token is probably expired
+              await storage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+            }
+          }
+          setIsAutoLoginDone(true);
+        }
       }
     })();
   }, [configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
