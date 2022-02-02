@@ -120,9 +120,13 @@ export const useAuth = ({
             const statusCode = Number.parseInt(err.message, 10);
             if (statusCode >= 400 && statusCode < 500) {
               // HTTP client error -> token is probably expired
+              console.log('Removing expired refresh token');
               await storage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+              setIsAutoLoginDone(true);
+              return;
             }
           }
+          console.error('Refresh token request failed', err);
           setIsAutoLoginDone(true);
         }
       }
