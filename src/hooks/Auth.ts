@@ -35,7 +35,7 @@ export interface AuthenticateOptions {
 }
 
 export interface AuthState {
-  login: () => Promise<void>;
+  login: (authorizationRequest?: AuthenticateOptions['authorizationRequest']) => Promise<void>;
   logout: () => Promise<boolean | undefined>;
   token?: string;
   idToken?: string;
