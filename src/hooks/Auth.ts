@@ -229,61 +229,64 @@ export const useAuth = ({
       .catch(err => console.error(err));
   }, [authHandler, configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
-  const login = useCallback(async () => {
-    if (!configuration || !authHandler || !isAutoLoginDone || !isInitializationComplete) {
-      throw new Error('called login too soon - you can check that with "isReady"');
-    }
+  const login = useCallback(
+    async (authorizationRequest?: AuthenticateOptions['authorizationRequest']) => {
+      if (!configuration || !authHandler || !isAutoLoginDone || !isInitializationComplete) {
+        throw new Error('called login too soon - you can check that with "isReady"');
+      }
 
-    // create a request
-    const request = new AuthorizationRequest(
-      {
-        client_id: options.clientId,
-        redirect_uri: options.redirectUrl,
-        scope: options.scope,
-        response_type: AuthorizationRequest.RESPONSE_TYPE_CODE,
-        state: undefined,
-        extras: options.authorizationRequest?.extras,
-      },
-      undefined,
-      options.usePkce,
-    );
+      const extras = { ...options.authorizationRequest?.extras, ...authorizationRequest?.extras };
 
-    // make the authorization request
-    authHandler.performAuthorizationRequest(configuration, request);
-  }, [
-    authHandler,
-    configuration,
-    isAutoLoginDone,
-    isInitializationComplete,
-    options.authorizationRequest?.extras,
-    options.clientId,
-    options.redirectUrl,
-    options.scope,
-    options.usePkce,
-  ]);
+      // create a request
+      const request = new AuthorizationRequest(
+        {
+          client_id: options.clientId,
+          redirect_uri: options.redirectUrl,
+          scope: options.scope,
+          response_type: AuthorizationRequest.RESPONSE_TYPE_CODE,
+          state: undefined,
+          extras,
+        },
+        undefined,
+        options.usePkce,
+      );
 
-  const logout = useCallback(async () => {
-    const tmpIdToken = idToken;
-
-    setRefreshToken(undefined);
-    setToken(undefined);
-    setIdToken(undefined);
-
-    if (!tmpIdToken || !configuration) {
-      return;
-    }
-
-    void performEndSessionRequest(
-      endSessionHandler,
+      // make the authorization request
+      authHandler.performAuthorizationRequest(configuration, request);
+    },
+    [
+      authHandler,
       configuration,
+      isAutoLoginDone,
+      isInitializationComplete,
+      options.authorizationRequest?.extras,
       options.clientId,
       options.redirectUrl,
-      idToken,
-      options.endSessionRequest?.extras,
-    );
+      options.scope,
+      options.usePkce,
+    ],
+  );
 
-    return true;
-  }, [configuration, endSessionHandler, idToken, options.clientId, options.endSessionRequest?.extras, options.redirectUrl]);
+  const logout = useCallback(
+    async (endSessionRequest?: AuthenticateOptions['endSessionRequest']) => {
+      const tmpIdToken = idToken;
+
+      setRefreshToken(undefined);
+      setToken(undefined);
+      setIdToken(undefined);
+
+      if (!tmpIdToken || !configuration) {
+        return;
+      }
+
+      const extras = { ...options.endSessionRequest?.extras, ...endSessionRequest?.extras };
+
+      void performEndSessionRequest(endSessionHandler, configuration, options.clientId, options.redirectUrl, idToken, extras);
+
+      return true;
+    },
+    [configuration, endSessionHandler, idToken, options.clientId, options.endSessionRequest?.extras, options.redirectUrl],
+  );
 
   return useMemo(
     () => ({
