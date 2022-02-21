@@ -1,1 +1,1 @@
-export { AuthenticateOptions, AuthState, useAuth } from './Auth';
+export { AuthenticateOptions, AuthState, useAuth, ErrorHandler, ErrorAction } from './Auth';
