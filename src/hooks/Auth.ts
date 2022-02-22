@@ -17,6 +17,13 @@ import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
 import { NoHashQueryStringUtils } from '../appauth/noHashQueryStringUtils';
 import { RedirectEndSessionRequestHandler } from '../appauth/redirectEndSessionRequestHandler';
 
+export enum ErrorAction {
+  UNKNOWN,
+  AUTO_LOGIN,
+  REFRESH_TOKEN_REQUEST,
+  FETCH_WELL_KNOWN,
+  COMPLETE_AUTHORIZATION_REQUEST,
+}
 export interface AuthenticateOptions {
   openIdConnectUrl: string;
   clientId: string;
@@ -43,8 +50,12 @@ export interface AuthState {
   isReady: boolean;
 }
 
+export type ErrorHandler = (err: AppAuthError | Error | unknown, duringAction: ErrorAction) => void;
+
 export interface AuthOptions {
   options: AuthenticateOptions;
+
+  onError?: (err: AppAuthError | Error | unknown, duringAction: ErrorAction) => void;
 
   authHandler?: AuthorizationRequestHandler;
   endSessionHandler?: EndSessionRequestHandler;
@@ -59,6 +70,7 @@ const DEFAULT_END_SESSION_HANDLER = new RedirectEndSessionRequestHandler(storage
 
 export const useAuth = ({
   options,
+  onError = () => undefined,
   authHandler = DEFAULT_AUTH_HANDLER,
   endSessionHandler = DEFAULT_END_SESSION_HANDLER,
 }: AuthOptions): AuthState => {
@@ -126,12 +138,12 @@ export const useAuth = ({
               return;
             }
           }
-          console.error('Refresh token request failed', err);
+          onError(err, ErrorAction.AUTO_LOGIN);
           setIsAutoLoginDone(true);
         }
       }
     })();
-  }, [configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
+  }, [configuration, onError, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
   // Refresh periodically.
   useEffect(() => {
@@ -143,7 +155,7 @@ export const useAuth = ({
       if (configuration) {
         await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, refreshToken, options.tokenRequest?.extras)
           .then(setTokenResponse)
-          .catch(console.error);
+          .catch(err => onError(err, ErrorAction.REFRESH_TOKEN_REQUEST));
       }
     }, refreshInterval);
 
@@ -159,6 +171,7 @@ export const useAuth = ({
     refreshToken,
     setTokenResponse,
     options.tokenRequest?.extras,
+    onError,
   ]);
 
   // Fetch the well known config one time.
@@ -168,10 +181,8 @@ export const useAuth = ({
         console.log('Fetched service configuration', response);
         setConfiguration(response);
       })
-      .catch(error => {
-        console.log('Something bad happened', error);
-      });
-  }, [options.openIdConnectUrl, options.redirectUrl]);
+      .catch(err => onError(err, ErrorAction.FETCH_WELL_KNOWN));
+  }, [onError, options.openIdConnectUrl, options.redirectUrl]);
 
   // Adds a listener for the redirect and triggers the token loading with the code retrieved from that.
   useEffect(() => {
@@ -182,14 +193,15 @@ export const useAuth = ({
     const notifier = new AuthorizationNotifier();
     authHandler.setAuthorizationNotifier(notifier);
     let listenerPromise: Promise<void> | undefined;
-    notifier.setAuthorizationListener((request, response, error) => {
+    notifier.setAuthorizationListener((request, response, err) => {
       listenerPromise = new Promise((resolve, reject) => {
-        if (error) {
-          reject(error);
+        if (err) {
+          reject(err);
           return;
         }
 
         // As this cb seems to be called too often some times, only run it the first time.
+        // TODO: maybe fixed now. Need to check to be sure...
         if (!configuration) {
           resolve();
           return;
@@ -215,7 +227,9 @@ export const useAuth = ({
           )
             .then(setTokenResponse)
             .then(resolve)
-            .catch(reject);
+            .catch(err => {
+              reject(err);
+            });
         }
       });
     });
@@ -226,8 +240,8 @@ export const useAuth = ({
       .completeAuthorizationRequestIfPossible()
       .then(() => listenerPromise)
       .then(() => setIsInitializationComplete(true))
-      .catch(err => console.error(err));
-  }, [authHandler, configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
+      .catch(err => onError(err, ErrorAction.COMPLETE_AUTHORIZATION_REQUEST));
+  }, [authHandler, configuration, onError, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
   const login = useCallback(
     async (authorizationRequest?: AuthenticateOptions['authorizationRequest']) => {
