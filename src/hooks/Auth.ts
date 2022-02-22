@@ -22,7 +22,6 @@ export enum ErrorAction {
   AUTO_LOGIN,
   REFRESH_TOKEN_REQUEST,
   FETCH_WELL_KNOWN,
-  TOKEN_REQUEST,
   COMPLETE_AUTHORIZATION_REQUEST,
 }
 export interface AuthenticateOptions {
@@ -229,7 +228,6 @@ export const useAuth = ({
             .then(setTokenResponse)
             .then(resolve)
             .catch(err => {
-              onError(err, ErrorAction.TOKEN_REQUEST);
               reject(err);
             });
         }
