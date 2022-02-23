@@ -65,12 +65,13 @@ const AUTH_REFRESH_TOKEN_KEY = 'AUTH_REFRESH_TOKEN';
 
 const storage = new LocalStorageBackend();
 
+const DEFAULT_ERROR_HANDLER: ErrorHandler = () => undefined;
 const DEFAULT_AUTH_HANDLER = new RedirectRequestHandler(storage, new NoHashQueryStringUtils(), window.location, new DefaultCrypto());
 const DEFAULT_END_SESSION_HANDLER = new RedirectEndSessionRequestHandler(storage, new NoHashQueryStringUtils(), window.location);
 
 export const useAuth = ({
   options,
-  onError = () => undefined,
+  onError = DEFAULT_ERROR_HANDLER,
   authHandler = DEFAULT_AUTH_HANDLER,
   endSessionHandler = DEFAULT_END_SESSION_HANDLER,
 }: AuthOptions): AuthState => {
