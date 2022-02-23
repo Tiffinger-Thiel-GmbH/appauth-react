@@ -240,7 +240,7 @@ export const useAuth = ({
     void authHandler
       .completeAuthorizationRequestIfPossible()
       .then(() => listenerPromise)
-      .then(() => setIsInitializationComplete(true))
+      .finally(() => setIsInitializationComplete(true))
       .catch(err => onError(err, ErrorAction.COMPLETE_AUTHORIZATION_REQUEST));
   }, [authHandler, configuration, onError, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
 
