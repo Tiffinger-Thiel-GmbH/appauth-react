@@ -12,7 +12,7 @@ import {
   StringMap,
   TokenResponse,
 } from '@openid/appauth';
-import { performEndSessionRequest, performRefreshTokenRequest, performTokenRequest } from './api';
+import { performEndSessionRequest, performRefreshTokenRequest, performRevokeTokenRequest, performTokenRequest } from './api';
 import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
 import { NoHashQueryStringUtils } from '../appauth/noHashQueryStringUtils';
 import { RedirectEndSessionRequestHandler } from '../appauth/redirectEndSessionRequestHandler';
@@ -48,6 +48,7 @@ export interface AuthState {
   idToken?: string;
   isLoggedIn: boolean;
   isReady: boolean;
+  configuration?: AuthorizationServiceConfiguration;
 }
 
 export type ErrorHandler = (err: AppAuthError | Error | unknown, duringAction: ErrorAction) => void;
@@ -282,6 +283,9 @@ export const useAuth = ({
     ],
   );
 
+  /**
+   * @returns true if already redirected. (due to a EndSessionRequest)
+   */
   const logout = useCallback(
     async (endSessionRequest?: AuthenticateOptions['endSessionRequest']) => {
       const tmpIdToken = idToken;
@@ -294,11 +298,18 @@ export const useAuth = ({
         return;
       }
 
-      const extras = { ...options.endSessionRequest?.extras, ...endSessionRequest?.extras };
+      if (configuration.endSessionEndpoint) {
+        // Call endSession.
+        const extras = { ...options.endSessionRequest?.extras, ...endSessionRequest?.extras };
+        await performEndSessionRequest(endSessionHandler, configuration, options.clientId, options.redirectUrl, idToken, extras);
+        return true;
+      } else if (configuration.revocationEndpoint) {
+        // Only revoke the token.
+        await performRevokeTokenRequest(configuration, options.clientId, tmpIdToken);
+        return false;
+      }
 
-      void performEndSessionRequest(endSessionHandler, configuration, options.clientId, options.redirectUrl, idToken, extras);
-
-      return true;
+      return false;
     },
     [configuration, endSessionHandler, idToken, options.clientId, options.endSessionRequest?.extras, options.redirectUrl],
   );
@@ -311,7 +322,8 @@ export const useAuth = ({
       isReady: isAutoLoginDone && isInitializationComplete,
       token,
       idToken,
+      configuration,
     }),
-    [idToken, isLoggedIn, isAutoLoginDone, isInitializationComplete, login, logout, token],
+    [idToken, isLoggedIn, isAutoLoginDone, isInitializationComplete, login, logout, token, configuration],
   );
 };
