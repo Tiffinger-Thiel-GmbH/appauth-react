@@ -43,9 +43,13 @@ export class RedirectEndSessionRequestHandler extends EndSessionRequestHandler {
     // before you make request, clear the storage.
     void this.storageBackend.clear().then(() => {
       // make the redirect request
-      const url = this.buildRequestUrl(configuration, request);
-      log('Making a request to ', request, url);
-      this.locationLike.assign(url);
+      if (configuration.endSessionEndpoint !== undefined) {
+        const url = this.buildRequestUrl(configuration, request);
+        log('Making a request to ', request, url);
+        this.locationLike.assign(url);
+      } else {
+        this.locationLike.assign(request.redirectUri);
+      }
     });
   }
 }

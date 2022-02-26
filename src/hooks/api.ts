@@ -4,6 +4,7 @@ import {
   FetchRequestor,
   GRANT_TYPE_AUTHORIZATION_CODE,
   GRANT_TYPE_REFRESH_TOKEN,
+  RevokeTokenRequest,
   StringMap,
   TokenRequest,
   TokenResponse,
@@ -50,6 +51,20 @@ export async function performRefreshTokenRequest(
 
   const tokenHandler = new BaseTokenRequestHandler(new FetchRequestor());
   return tokenHandler.performTokenRequest(configuration, tokenRequest);
+}
+
+export async function performRevokeTokenRequest(
+  configuration: AuthorizationServiceConfiguration,
+  clientId: string,
+  token: string,
+): Promise<boolean> {
+  const tokenRequest = new RevokeTokenRequest({
+    client_id: clientId,
+    token: token,
+  });
+
+  const tokenHandler = new BaseTokenRequestHandler(new FetchRequestor());
+  return tokenHandler.performRevokeTokenRequest(configuration, tokenRequest);
 }
 
 export function performEndSessionRequest(
