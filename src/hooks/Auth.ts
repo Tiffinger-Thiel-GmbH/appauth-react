@@ -26,8 +26,7 @@ export enum ErrorAction {
 }
 export interface AuthenticateOptions {
   /**
-   * If set it will load the configuration from it.
-   * Should be set to a '../.well-known/openid-configuration' uri.
+   * If set it will load the configuration from it (using '../.well-known/openid-configuration').
    */
   openIdConnectUrl?: string;
 
