@@ -21,11 +21,21 @@ export enum ErrorAction {
   UNKNOWN,
   AUTO_LOGIN,
   REFRESH_TOKEN_REQUEST,
-  FETCH_WELL_KNOWN,
+  FETCH_AUTHORIZATION_SERVICE_CONFIGURATION,
   COMPLETE_AUTHORIZATION_REQUEST,
 }
 export interface AuthenticateOptions {
-  openIdConnectUrl: string;
+  /**
+   * If set it will load the configuration from it.
+   * Should be set to a '../.well-known/openid-configuration' uri.
+   */
+  openIdConnectUrl?: string;
+
+  /**
+   * If openIdConnectUrl is not set, it will use this configuration.
+   */
+  configuration?: AuthorizationServiceConfiguration;
+
   clientId: string;
   scope: string;
   redirectUrl: string;
@@ -177,13 +187,23 @@ export const useAuth = ({
 
   // Fetch the well known config one time.
   useEffect(() => {
-    AuthorizationServiceConfiguration.fetchFromIssuer(options.openIdConnectUrl, new FetchRequestor())
+    void (async (): Promise<AuthorizationServiceConfiguration | undefined> => {
+      if (options.openIdConnectUrl) {
+        return AuthorizationServiceConfiguration.fetchFromIssuer(options.openIdConnectUrl, new FetchRequestor());
+      } else {
+        return options.configuration;
+      }
+    })()
       .then(response => {
+        if (response === undefined) {
+          throw new Error('no configuration or openIdConnectUrl given');
+        }
+
         console.log('Fetched service configuration', response);
         setConfiguration(response);
       })
-      .catch(err => onError(err, ErrorAction.FETCH_WELL_KNOWN));
-  }, [onError, options.openIdConnectUrl, options.redirectUrl]);
+      .catch(err => onError(err, ErrorAction.FETCH_AUTHORIZATION_SERVICE_CONFIGURATION));
+  }, [onError, options.configuration, options.openIdConnectUrl]);
 
   // Adds a listener for the redirect and triggers the token loading with the code retrieved from that.
   useEffect(() => {
