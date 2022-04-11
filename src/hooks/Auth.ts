@@ -23,6 +23,7 @@ export enum ErrorAction {
   REFRESH_TOKEN_REQUEST,
   FETCH_WELL_KNOWN,
   COMPLETE_AUTHORIZATION_REQUEST,
+  HANDLE_AUTHORIZATION_RESPONSE,
 }
 export interface AuthenticateOptions {
   openIdConnectUrl: string;
@@ -193,11 +194,14 @@ export const useAuth = ({
 
     const notifier = new AuthorizationNotifier();
     authHandler.setAuthorizationNotifier(notifier);
+    // this promise is required to wait for the token request before setting initializationComplete
+    // it should never reject, as errors are not handled in all cases
     let listenerPromise: Promise<void> | undefined;
     notifier.setAuthorizationListener((request, response, err) => {
-      listenerPromise = new Promise((resolve, reject) => {
+      listenerPromise = new Promise(resolve => {
         if (err) {
-          reject(err);
+          onError(err, ErrorAction.HANDLE_AUTHORIZATION_RESPONSE);
+          resolve();
           return;
         }
 
@@ -229,7 +233,8 @@ export const useAuth = ({
             .then(setTokenResponse)
             .then(resolve)
             .catch(err => {
-              reject(err);
+              onError(err, ErrorAction.HANDLE_AUTHORIZATION_RESPONSE);
+              resolve();
             });
         }
       });
