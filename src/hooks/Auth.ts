@@ -16,6 +16,7 @@ import { performEndSessionRequest, performRefreshTokenRequest, performTokenReque
 import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
 import { NoHashQueryStringUtils } from '../appauth/noHashQueryStringUtils';
 import { RedirectEndSessionRequestHandler } from '../appauth/redirectEndSessionRequestHandler';
+import { singleEntry } from './mutex';
 
 export enum ErrorAction {
   UNKNOWN,
@@ -31,6 +32,10 @@ export interface AuthenticateOptions {
   scope: string;
   redirectUrl: string;
   usePkce?: boolean;
+  /**
+   * Set to true if you want to handle token refresh manually (call checkToken)
+   */
+  disableTokenRefresh?: boolean;
   tokenRequest?: {
     extras?: StringMap | undefined;
   };
@@ -45,6 +50,13 @@ export interface AuthenticateOptions {
 export interface AuthState {
   login: (authorizationRequest?: AuthenticateOptions['authorizationRequest']) => Promise<void>;
   logout: () => Promise<boolean | undefined>;
+  /**
+   * Check if the access token is still valid (by expiresIn value) and perform a token refresh
+   * request if the token is expired, or is going to expire soon
+   * @param forceRefresh set to true to ignore expiresIn value and always perform a refresh
+   * @returns the new set of tokens if the token was refreshed
+   */
+  checkToken: (forceRefresh?: boolean) => Promise<{ token: string; idToken?: string } | undefined>;
   token?: string;
   idToken?: string;
   isLoggedIn: boolean;
@@ -60,6 +72,18 @@ export interface AuthOptions {
 
   authHandler?: AuthorizationRequestHandler;
   endSessionHandler?: EndSessionRequestHandler;
+}
+
+interface RefreshTokenState {
+  token: string;
+  /**
+   * issue date of access and refresh token
+   */
+  issuedAt: Date;
+  /**
+   * milliseconds from issuedAt when the access token is going to expire
+   */
+  expiresIn: number;
 }
 
 const AUTH_REFRESH_TOKEN_KEY = 'AUTH_REFRESH_TOKEN';
@@ -83,9 +107,7 @@ export const useAuth = ({
   const [token, setToken] = useState<string>();
   const [idToken, setIdToken] = useState<string>();
   const [configuration, setConfiguration] = useState<AuthorizationServiceConfiguration>();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [refreshToken, setRefreshToken] = useState<string>();
-  const [refreshInterval, setRefreshInterval] = useState(Math.floor(3240000));
+  const [refreshToken, setRefreshToken] = useState<RefreshTokenState>();
 
   const isLoggedIn = token !== undefined && isAutoLoginDone;
 
@@ -97,84 +119,107 @@ export const useAuth = ({
       return;
     }
 
-    setToken(oResponse.accessToken);
-
     if (oResponse.refreshToken) {
-      setRefreshToken(oResponse.refreshToken);
+      setRefreshToken({ token: oResponse.refreshToken, issuedAt: new Date(), expiresIn: (oResponse.expiresIn || 3600) * 1000 });
       void storage.setItem(AUTH_REFRESH_TOKEN_KEY, oResponse.refreshToken);
     }
 
+    setToken(oResponse.accessToken);
     setIdToken(oResponse.idToken);
-    setIsAutoLoginDone(true);
-
-    // Set the interval to a bit shorter time.
-    setRefreshInterval(Math.floor((oResponse.expiresIn || 3600) * 1000 * 0.9));
   }, []);
+
+  const _refreshAccessToken = useCallback(
+    async (savedRefreshToken: string) => {
+      if (!configuration) {
+        throw new Error('called refresh too soon - you can check that with "isReady"');
+      }
+      try {
+        const response = await performRefreshTokenRequest(
+          configuration,
+          options.clientId,
+          options.redirectUrl,
+          savedRefreshToken,
+          options.tokenRequest?.extras,
+        );
+        setTokenResponse(response);
+        return { token: response.accessToken, idToken: response.idToken };
+      } catch (err) {
+        if (err instanceof AppAuthError) {
+          const statusCode = Number.parseInt(err.message, 10);
+          if (statusCode >= 400 && statusCode < 500) {
+            // HTTP client error -> token is probably expired
+            console.log('Removing expired refresh token');
+            setRefreshToken(undefined);
+            setToken(undefined);
+            setIdToken(undefined);
+            await storage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+          }
+        }
+        onError(err, ErrorAction.REFRESH_TOKEN_REQUEST);
+      }
+    },
+    [configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse, onError],
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const performTokenRefresh = useCallback(singleEntry(_refreshAccessToken), [_refreshAccessToken]);
 
   // Auto login if refresh token exists.
   useEffect(() => {
     void (async () => {
       const savedRefreshToken = await storage.getItem(AUTH_REFRESH_TOKEN_KEY);
-      if (!savedRefreshToken) {
+      if (!savedRefreshToken || isAutoLoginDone) {
         setIsAutoLoginDone(true);
         return;
       }
       if (configuration) {
         try {
-          const response = await performRefreshTokenRequest(
-            configuration,
-            options.clientId,
-            options.redirectUrl,
-            savedRefreshToken,
-            options.tokenRequest?.extras,
-          );
-          setTokenResponse(response);
-        } catch (err) {
-          if (err instanceof AppAuthError) {
-            const statusCode = Number.parseInt(err.message, 10);
-            if (statusCode >= 400 && statusCode < 500) {
-              // HTTP client error -> token is probably expired
-              console.log('Removing expired refresh token');
-              await storage.removeItem(AUTH_REFRESH_TOKEN_KEY);
-              setIsAutoLoginDone(true);
-              return;
-            }
-          }
-          onError(err, ErrorAction.AUTO_LOGIN);
+          await performTokenRefresh(savedRefreshToken);
+        } finally {
           setIsAutoLoginDone(true);
         }
       }
     })();
-  }, [configuration, onError, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
+  }, [configuration, isAutoLoginDone, onError, performTokenRefresh, setTokenResponse]);
 
   // Refresh periodically.
   useEffect(() => {
+    if (!isLoggedIn || !refreshToken || options.disableTokenRefresh) {
+      return;
+    }
     const timeoutId = setTimeout(async () => {
-      if (!isLoggedIn || !refreshToken) {
-        return;
+      if (configuration && refreshToken) {
+        await performTokenRefresh(refreshToken.token);
       }
-
-      if (configuration) {
-        await performRefreshTokenRequest(configuration, options.clientId, options.redirectUrl, refreshToken, options.tokenRequest?.extras)
-          .then(setTokenResponse)
-          .catch(err => onError(err, ErrorAction.REFRESH_TOKEN_REQUEST));
-      }
-    }, refreshInterval);
+    }, refreshToken.expiresIn * 0.9);
 
     return () => {
       clearInterval(timeoutId);
     };
-  }, [
-    configuration,
-    options.redirectUrl,
-    isLoggedIn,
-    options.clientId,
-    refreshInterval,
-    refreshToken,
-    setTokenResponse,
-    options.tokenRequest?.extras,
-    onError,
-  ]);
+  }, [configuration, isLoggedIn, refreshToken, options.disableTokenRefresh, performTokenRefresh]);
+
+  const checkToken = useCallback(
+    async (forceRefresh?: boolean) => {
+      if (!refreshToken) {
+        return;
+      }
+
+      const isExpired = refreshToken.issuedAt.getTime() + refreshToken.expiresIn < Date.now();
+      const willExpire = refreshToken.issuedAt.getTime() + refreshToken.expiresIn * 0.9 < Date.now();
+      if (!willExpire && !forceRefresh) {
+        return;
+      }
+
+      if (isExpired) {
+        // the token is already expired, refresh synchronously
+        return await performTokenRefresh(refreshToken.token);
+      } else {
+        // the token is still valid, refresh in background
+        void performTokenRefresh(refreshToken.token);
+      }
+    },
+    [refreshToken, performTokenRefresh],
+  );
 
   // Fetch the well known config one time.
   useEffect(() => {
@@ -312,11 +357,12 @@ export const useAuth = ({
     () => ({
       login,
       logout,
+      checkToken,
       isLoggedIn,
       isReady: isAutoLoginDone && isInitializationComplete,
       token,
       idToken,
     }),
-    [idToken, isLoggedIn, isAutoLoginDone, isInitializationComplete, login, logout, token],
+    [idToken, isLoggedIn, isAutoLoginDone, isInitializationComplete, login, logout, checkToken, token],
   );
 };
