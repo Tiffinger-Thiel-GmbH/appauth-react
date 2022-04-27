@@ -36,6 +36,13 @@ export interface AuthenticateOptions {
    * Set to true if you want to handle token refresh manually (call checkToken)
    */
   disableTokenRefresh?: boolean;
+  /**
+   * The factor to apply when calculating the time of the next automatic token refresh.
+   * Should be < 1 to refresh the token earlier than its expiration time.
+   * This also applies when `checkToken` is called.
+   * @default 0.9
+   */
+  refreshIntervalFactor?: number;
   tokenRequest?: {
     extras?: StringMap | undefined;
   };
@@ -93,6 +100,8 @@ const storage = new LocalStorageBackend();
 const DEFAULT_ERROR_HANDLER: ErrorHandler = () => undefined;
 const DEFAULT_AUTH_HANDLER = new RedirectRequestHandler(storage, new NoHashQueryStringUtils(), window.location, new DefaultCrypto());
 const DEFAULT_END_SESSION_HANDLER = new RedirectEndSessionRequestHandler(storage, new NoHashQueryStringUtils(), window.location);
+
+const DEFAULT_REFRESH_INTERVAL_FACTOR = 0.9;
 
 export const useAuth = ({
   options,
@@ -190,12 +199,12 @@ export const useAuth = ({
       if (configuration && refreshToken) {
         await performTokenRefresh(refreshToken.token);
       }
-    }, refreshToken.expiresIn * 0.9);
+    }, refreshToken.expiresIn * (options.refreshIntervalFactor || DEFAULT_REFRESH_INTERVAL_FACTOR));
 
     return () => {
       clearInterval(timeoutId);
     };
-  }, [configuration, isLoggedIn, refreshToken, options.disableTokenRefresh, performTokenRefresh]);
+  }, [configuration, isLoggedIn, refreshToken, options.disableTokenRefresh, options.refreshIntervalFactor, performTokenRefresh]);
 
   const checkToken = useCallback(
     async (forceRefresh?: boolean) => {
@@ -204,7 +213,9 @@ export const useAuth = ({
       }
 
       const isExpired = refreshToken.issuedAt.getTime() + refreshToken.expiresIn < Date.now();
-      const willExpire = refreshToken.issuedAt.getTime() + refreshToken.expiresIn * 0.9 < Date.now();
+      const willExpire =
+        refreshToken.issuedAt.getTime() + refreshToken.expiresIn * (options.refreshIntervalFactor || DEFAULT_REFRESH_INTERVAL_FACTOR) <
+        Date.now();
       if (!willExpire && !forceRefresh) {
         return;
       }
@@ -217,7 +228,7 @@ export const useAuth = ({
         void performTokenRefresh(refreshToken.token);
       }
     },
-    [refreshToken, performTokenRefresh],
+    [options.refreshIntervalFactor, refreshToken, performTokenRefresh],
   );
 
   // Fetch the well known config one time.
