@@ -148,7 +148,6 @@ export const useAuth = ({
           const statusCode = Number.parseInt(err.message, 10);
           if (statusCode >= 400 && statusCode < 500) {
             // HTTP client error -> token is probably expired
-            console.log('Removing expired refresh token');
             setRefreshToken(undefined);
             setToken(undefined);
             setIdToken(undefined);
@@ -225,7 +224,6 @@ export const useAuth = ({
   useEffect(() => {
     AuthorizationServiceConfiguration.fetchFromIssuer(options.openIdConnectUrl, new FetchRequestor())
       .then(response => {
-        console.log('Fetched service configuration', response);
         setConfiguration(response);
       })
       .catch(err => onError(err, ErrorAction.FETCH_WELL_KNOWN));
