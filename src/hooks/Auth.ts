@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AppAuthError,
   AuthorizationNotifier,
@@ -6,16 +5,17 @@ import {
   AuthorizationRequestHandler,
   AuthorizationServiceConfiguration,
   DefaultCrypto,
-  FetchRequestor,
   LocalStorageBackend,
   RedirectRequestHandler,
   StringMap,
   TokenResponse,
 } from '@openid/appauth';
-import { performEndSessionRequest, performRefreshTokenRequest, performTokenRequest } from './api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
+import { ConfigurableFetchRequestor, timeoutInterceptor } from '../appauth/fetchRequestor';
 import { NoHashQueryStringUtils } from '../appauth/noHashQueryStringUtils';
 import { RedirectEndSessionRequestHandler } from '../appauth/redirectEndSessionRequestHandler';
+import { performEndSessionRequest, performRefreshTokenRequest, performTokenRequest } from './api';
 import { singleEntry } from './mutex';
 
 export enum ErrorAction {
@@ -52,6 +52,8 @@ export interface AuthenticateOptions {
   authorizationRequest?: {
     extras?: StringMap | undefined;
   };
+
+  requestTimeoutMilliseconds?: number;
 }
 
 export interface AuthState {
@@ -149,6 +151,9 @@ export const useAuth = ({
           options.redirectUrl,
           savedRefreshToken,
           options.tokenRequest?.extras,
+          {
+            requestTimeoutMilliseconds: options.requestTimeoutMilliseconds,
+          },
         );
         setTokenResponse(response);
         return { token: response.accessToken, idToken: response.idToken };
@@ -166,7 +171,15 @@ export const useAuth = ({
         onError(err, ErrorAction.REFRESH_TOKEN_REQUEST);
       }
     },
-    [configuration, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse, onError],
+    [
+      configuration,
+      options.clientId,
+      options.redirectUrl,
+      options.tokenRequest?.extras,
+      options.requestTimeoutMilliseconds,
+      setTokenResponse,
+      onError,
+    ],
   );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,12 +246,15 @@ export const useAuth = ({
 
   // Fetch the well known config one time.
   useEffect(() => {
-    AuthorizationServiceConfiguration.fetchFromIssuer(options.openIdConnectUrl, new FetchRequestor())
+    AuthorizationServiceConfiguration.fetchFromIssuer(
+      options.openIdConnectUrl,
+      new ConfigurableFetchRequestor(timeoutInterceptor(options.requestTimeoutMilliseconds)),
+    )
       .then(response => {
         setConfiguration(response);
       })
       .catch(err => onError(err, ErrorAction.FETCH_WELL_KNOWN));
-  }, [onError, options.openIdConnectUrl, options.redirectUrl]);
+  }, [onError, options.openIdConnectUrl, options.redirectUrl, options.requestTimeoutMilliseconds]);
 
   // Adds a listener for the redirect and triggers the token loading with the code retrieved from that.
   useEffect(() => {
@@ -283,6 +299,9 @@ export const useAuth = ({
                   ...(options.tokenRequest?.extras || {}),
                 }
               : options.tokenRequest?.extras,
+            {
+              requestTimeoutMilliseconds: options.requestTimeoutMilliseconds,
+            },
           )
             .then(setTokenResponse)
             .then(resolve)
@@ -301,7 +320,16 @@ export const useAuth = ({
       .then(() => listenerPromise)
       .finally(() => setIsInitializationComplete(true))
       .catch(err => onError(err, ErrorAction.COMPLETE_AUTHORIZATION_REQUEST));
-  }, [authHandler, configuration, onError, options.clientId, options.redirectUrl, options.tokenRequest?.extras, setTokenResponse]);
+  }, [
+    authHandler,
+    configuration,
+    onError,
+    options.clientId,
+    options.redirectUrl,
+    options.requestTimeoutMilliseconds,
+    options.tokenRequest?.extras,
+    setTokenResponse,
+  ]);
 
   const login = useCallback(
     async (authorizationRequest?: AuthenticateOptions['authorizationRequest']) => {
