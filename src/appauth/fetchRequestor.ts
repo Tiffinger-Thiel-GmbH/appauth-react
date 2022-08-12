@@ -5,7 +5,7 @@ type RequestInterceptor = (url: URL, request: RequestInit) => [URL, RequestInit]
 const passthrough: RequestInterceptor = (u, r) => [u, r];
 
 export const timeoutInterceptor: (timeoutMilliseconds?: number) => RequestInterceptor =
-  (timeoutMilliseconds = 5000) =>
+  (timeoutMilliseconds = 30000) =>
   (url, request) => {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), timeoutMilliseconds);
