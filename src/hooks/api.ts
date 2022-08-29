@@ -1,7 +1,6 @@
 import {
   AuthorizationServiceConfiguration,
   BaseTokenRequestHandler,
-  FetchRequestor,
   GRANT_TYPE_AUTHORIZATION_CODE,
   GRANT_TYPE_REFRESH_TOKEN,
   StringMap,
@@ -10,6 +9,7 @@ import {
 } from '@openid/appauth';
 import { EndSessionRequest } from '../appauth/endSessionRequest';
 import { EndSessionRequestHandler } from '../appauth/endSessionRequestHandler';
+import { ConfigurableFetchRequestor, timeoutInterceptor } from '../appauth/fetchRequestor';
 
 export async function performTokenRequest(
   configuration: AuthorizationServiceConfiguration,
@@ -17,6 +17,9 @@ export async function performTokenRequest(
   redirectUrl: string,
   code: string,
   extras?: StringMap,
+  options?: {
+    requestTimeoutMilliseconds?: number;
+  },
 ): Promise<TokenResponse> {
   // A. First, you need to create a token request object
   const tokenRequest = new TokenRequest({
@@ -28,7 +31,7 @@ export async function performTokenRequest(
   });
 
   // B. Hit `/token` endpoint and get token
-  const tokenHandler = new BaseTokenRequestHandler(new FetchRequestor());
+  const tokenHandler = new BaseTokenRequestHandler(new ConfigurableFetchRequestor(timeoutInterceptor(options?.requestTimeoutMilliseconds)));
   return tokenHandler.performTokenRequest(configuration, tokenRequest);
 }
 
@@ -38,6 +41,9 @@ export async function performRefreshTokenRequest(
   redirectUrl: string,
   refreshToken: string | undefined,
   extras?: StringMap,
+  options?: {
+    requestTimeoutMilliseconds?: number;
+  },
 ): Promise<TokenResponse> {
   const tokenRequest = new TokenRequest({
     client_id: clientId,
@@ -48,7 +54,7 @@ export async function performRefreshTokenRequest(
     extras,
   });
 
-  const tokenHandler = new BaseTokenRequestHandler(new FetchRequestor());
+  const tokenHandler = new BaseTokenRequestHandler(new ConfigurableFetchRequestor(timeoutInterceptor(options?.requestTimeoutMilliseconds)));
   return tokenHandler.performTokenRequest(configuration, tokenRequest);
 }
 

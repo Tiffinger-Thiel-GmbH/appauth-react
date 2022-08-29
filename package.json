@@ -26,7 +26,7 @@
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-node-resolve": "^13.1.3",
     "@rollup/plugin-typescript": "^8.3.0",
-    "@tiffinger-thiel/eslint-config": "^1.2.1",
+    "@tiffinger-thiel/eslint-config": "^2.0.0",
     "@types/react": "^17.0.38",
     "eslint": "^8.7.0",
     "husky": "^7.0.4",
