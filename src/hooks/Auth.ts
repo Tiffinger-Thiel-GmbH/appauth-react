@@ -59,7 +59,11 @@ export interface AuthenticateOptions {
 export interface AuthState {
   login: (authorizationRequest?: AuthenticateOptions['authorizationRequest']) => Promise<void>;
   logout: () => Promise<boolean | undefined>;
-  logoutLocal: () => void;
+  /**
+   * Unset all token (IDToken, Access-Token, Refresh-Token) and clear local storage to
+   * perform a local logout
+   */
+  logoutLocal: () => Promise<void>;
   /**
    * Check if the access token is still valid (by expiresIn value) and perform a token refresh
    * request if the token is expired, or is going to expire soon
@@ -391,10 +395,11 @@ export const useAuth = ({
     [configuration, endSessionHandler, idToken, options.clientId, options.endSessionRequest?.extras, options.redirectUrl],
   );
 
-  const logoutLocal = (): void => {
+  const logoutLocal = async (): Promise<void> => {
     setRefreshToken(undefined);
     setToken(undefined);
     setIdToken(undefined);
+    await storage.clear();
   };
 
   return useMemo(
